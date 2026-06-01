@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Trading Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════
+   DESIGN SYSTEM
+═══════════════════════════════════════════════════════════ */
+:root {
+  --bg:         #080b0f;
+  --bg1:        #0d1117;
+  --bg2:        #111820;
+  --bg3:        #161e28;
+  --border:     #1e2d3d;
+  --border2:    #243447;
+  --text:       #c8d8e8;
+  --text2:      #6a8aaa;
+  --text3:      #3d5570;
+  --accent:     #00d4ff;
+  --accent2:    #0098cc;
+  --green:      #00e5a0;
+  --green2:     #00a870;
+  --red:        #ff4466;
+  --red2:       #cc2244;
+  --yellow:     #ffcc00;
+  --purple:     #8855ff;
+  --font-mono:  'Space Mono', monospace;
+  --font-sans:  'Syne', sans-serif;
+  --radius:     4px;
+  --glow-accent: 0 0 20px rgba(0,212,255,0.15);
+  --glow-green:  0 0 20px rgba(0,229,160,0.15);
+  --glow-red:    0 0 20px rgba(255,68,102,0.15);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* ── SCANLINE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── GRID NOISE BG ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ══════════════════════════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════════════════════════ */
+#app { position: relative; z-index: 1; }
+
+/* ── TOPBAR ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 56px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+
+.logo {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  text-transform: uppercase;
+  text-shadow: 0 0 30px rgba(0,212,255,0.5);
+}
+.logo span { color: var(--text3); font-weight: 400; }
+
+.topbar-center {
+  display: flex; gap: 4px;
+}
+
+.tab {
+  padding: 6px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text2);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: var(--radius);
+}
+.tab:hover { color: var(--text); border-color: var(--border2); }
+.tab.active {
+  color: var(--accent);
+  border-color: var(--accent2);
+  background: rgba(0,212,255,0.05);
+}
+
+.topbar-right {
+  display: flex; align-items: center; gap: 16px;
+}
+
+.ws-status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text3);
+  letter-spacing: 0.08em;
+}
+.ws-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: background 0.3s;
+}
+.ws-dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+.ws-dot.err  { background: var(--red); }
+
+@keyframes pulse {
+  0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+}
+
+.clock {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text2);
+  letter-spacing: 0.08em;
+}
+
+/* ── MAIN GRID ── */
+.main {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── PAGES ── */
+.page { display: none; }
+.page.active { display: contents; }
+
+/* ══════════════════════════════════════════════════════════
+   STAT CARDS ROW
+══════════════════════════════════════════════════════════ */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+.stat-card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.stat-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent2);
+  opacity: 0.5;
+}
+.stat-card:hover { border-color: var(--border2); }
+
+.stat-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 8px;
+}
+.stat-value {
+  font-family: var(--font-sans);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  transition: color 0.3s;
+}
+.stat-value.up   { color: var(--green); }
+.stat-value.down { color: var(--red); }
+.stat-value.accent { color: var(--accent); }
+
+.stat-sub {
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 4px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PANELS
+══════════════════════════════════════════════════════════ */
+.panel-row {
+  display: grid;
+  gap: 16px;
+}
+.panel-row.cols-2 { grid-template-columns: 1fr 1fr; }
+.panel-row.cols-3 { grid-template-columns: 2fr 1fr 1fr; }
+.panel-row.cols-1-2 { grid-template-columns: 1fr 2fr; }
+
+.panel {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+
+.panel-title {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text2);
+  font-family: var(--font-mono);
+}
+
+.panel-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  background: var(--bg3);
+  color: var(--text3);
+  border: 1px solid var(--border);
+  letter-spacing: 0.05em;
+}
+.panel-badge.live { color: var(--green); border-color: var(--green2); background: rgba(0,229,160,0.05); }
+
+.panel-body { padding: 16px 18px; flex: 1; overflow: auto; }
+
+/* ══════════════════════════════════════════════════════════
+   TABLE
+══════════════════════════════════════════════════════════ */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.data-table th {
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(30,45,61,0.5);
+  color: var(--text);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.data-table tr:hover td { background: rgba(255,255,255,0.02); }
+.data-table tr:last-child td { border-bottom: none; }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+.tag.long  { background: rgba(0,229,160,0.1); color: var(--green); border: 1px solid rgba(0,229,160,0.2); }
+.tag.short { background: rgba(255,68,102,0.1); color: var(--red);   border: 1px solid rgba(255,68,102,0.2); }
+.tag.open  { background: rgba(0,212,255,0.08); color: var(--accent); border: 1px solid rgba(0,212,255,0.15); }
+
+.pnl-pos { color: var(--green); }
+.pnl-neg { color: var(--red); }
+.mono { font-family: var(--font-mono); }
+
+/* ══════════════════════════════════════════════════════════
+   PNL CHART (SVG canvas)
+══════════════════════════════════════════════════════════ */
+.chart-wrap {
+  position: relative;
+  height: 160px;
+}
+#pnlCanvas {
+  width: 100%; height: 100%;
+}
+
+/* ══════════════════════════════════════════════════════════
+   OPEN POSITIONS CARDS
+══════════════════════════════════════════════════════════ */
+.pos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.pos-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pos-card.long-card  { border-left: 2px solid var(--green); }
+.pos-card.short-card { border-left: 2px solid var(--red); }
+
+.pos-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.pos-symbol {
+  font-family: var(--font-sans);
+  font-weight: 700; font-size: 15px;
+  color: var(--text);
+}
+.pos-lev {
+  font-size: 10px;
+  color: var(--yellow);
+  background: rgba(255,204,0,0.08);
+  border: 1px solid rgba(255,204,0,0.15);
+  padding: 2px 6px; border-radius: 2px;
+}
+
+.pos-row {
+  display: flex; justify-content: space-between;
+  margin-bottom: 5px; font-size: 11px;
+}
+.pos-key { color: var(--text3); }
+.pos-val { color: var(--text); font-family: var(--font-mono); }
+
+.pos-rr-bar {
+  margin-top: 10px;
+  height: 3px;
+  background: var(--bg3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.pos-rr-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent2), var(--green));
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* ══════════════════════════════════════════════════════════
+   OPTIMIZER TABLE
+══════════════════════════════════════════════════════════ */
+.score-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.score-fill {
+  height: 4px; width: 60px;
+  background: var(--bg3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.score-inner {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent2), var(--purple));
+  border-radius: 2px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   OPTIMIZER STATUS CARD
+══════════════════════════════════════════════════════════ */
+.opt-status {
+  display: flex; flex-direction: column; gap: 14px;
+}
+.opt-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.opt-row:last-child { border-bottom: none; padding-bottom: 0; }
+.opt-row-label { color: var(--text2); font-size: 11px; }
+.opt-row-val {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.countdown {
+  font-size: 22px;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 20px rgba(0,212,255,0.3);
+}
+
+.global-best {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-top: 4px;
+}
+.gb-sym {
+  font-family: var(--font-sans);
+  font-weight: 700; font-size: 16px;
+  color: var(--yellow);
+  margin-bottom: 8px;
+}
+.gb-stats {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.gb-stat { font-size: 11px; }
+.gb-stat-label { color: var(--text3); margin-right: 4px; }
+.gb-stat-val { color: var(--text); }
+
+/* ══════════════════════════════════════════════════════════
+   SIGNAL TOAST NOTIFICATION
+══════════════════════════════════════════════════════════ */
+#toastContainer {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 9998;
+}
+.toast {
+  width: 320px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  animation: toastIn 0.3s ease;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.toast.long-toast  { border-left: 3px solid var(--green); }
+.toast.short-toast { border-left: 3px solid var(--red); }
+
+@keyframes toastIn {
+  from { opacity:0; transform: translateX(20px); }
+  to   { opacity:1; transform: translateX(0); }
+}
+@keyframes toastOut {
+  to { opacity:0; transform: translateX(20px); }
+}
+.toast-header {
+  display: flex; justify-content: space-between;
+  margin-bottom: 6px; font-size: 12px;
+}
+.toast-sym { font-family: var(--font-sans); font-weight: 700; font-size: 14px; }
+.toast-dir { font-size: 10px; padding: 2px 6px; border-radius: 2px; }
+.toast-rows { font-size: 11px; color: var(--text2); }
+.toast-row { display: flex; justify-content: space-between; margin-top: 3px; }
+.toast-val { color: var(--text); font-family: var(--font-mono); }
+
+/* ══════════════════════════════════════════════════════════
+   EMPTY STATE
+══════════════════════════════════════════════════════════ */
+.empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 40px; gap: 8px;
+  color: var(--text3); font-size: 12px;
+}
+.empty-icon { font-size: 28px; opacity: 0.3; margin-bottom: 4px; }
+
+/* ══════════════════════════════════════════════════════════
+   SCROLLBAR
+══════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ══════════════════════════════════════════════════════════
+   ANIMATIONS
+══════════════════════════════════════════════════════════ */
+.flash { animation: flashUpdate 0.4s ease; }
+@keyframes flashUpdate {
+  0%   { background: rgba(0,212,255,0.1); }
+  100% { background: transparent; }
+}
+
+.number-change { transition: color 0.3s, text-shadow 0.3s; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── TOPBAR ── -->
+  <header class="topbar">
+    <div class="logo">NEXUS <span>// TRADING INTELLIGENCE</span></div>
+
+    <nav class="topbar-center">
+      <button class="tab active" onclick="switchTab('overview')">Overview</button>
+      <button class="tab" onclick="switchTab('positions')">Positions</button>
+      <button class="tab" onclick="switchTab('signals')">Signals</button>
+      <button class="tab" onclick="switchTab('optimizer')">Optimizer</button>
+    </nav>
+
+    <div class="topbar-right">
+      <div class="ws-status">
+        <div class="ws-dot" id="wsDot"></div>
+        <span id="wsLabel">CONNECTING</span>
+      </div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════
+       PAGE: OVERVIEW
+  ══════════════════════════════════════════════════════ -->
+  <main class="main">
+    <div class="page active" id="page-overview">
+
+      <!-- STAT CARDS -->
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">Total Signals</div>
+          <div class="stat-value accent" id="s-totalSignals">—</div>
+          <div class="stat-sub" id="s-openSub">— open</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Win Rate</div>
+          <div class="stat-value" id="s-winRate">—</div>
+          <div class="stat-sub" id="s-wlSub">— W / — L</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Net PnL</div>
+          <div class="stat-value" id="s-totalPnl">—</div>
+          <div class="stat-sub" id="s-avgSub">avg — per trade</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Best Trade</div>
+          <div class="stat-value up" id="s-bestTrade">—</div>
+          <div class="stat-sub" id="s-worstSub">worst —</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Max Drawdown</div>
+          <div class="stat-value" id="s-maxDD">—</div>
+          <div class="stat-sub">from peak equity</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Opt. Runs</div>
+          <div class="stat-value accent" id="s-optRuns">—</div>
+          <div class="stat-sub" id="s-optSyms">— symbols</div>
+        </div>
+      </div>
+
+      <!-- CHARTS + OPTIMIZER ROW -->
+      <div class="panel-row cols-3">
+        <!-- PnL Curve -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Equity Curve</span>
+            <span class="panel-badge live">LIVE</span>
+          </div>
+          <div class="panel-body">
+            <div class="chart-wrap">
+              <canvas id="pnlCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Open Positions mini -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Open Positions</span>
+            <span class="panel-badge" id="openBadge">0</span>
+          </div>
+          <div class="panel-body" style="padding:12px;">
+            <div id="openMini">
+              <div class="empty"><div class="empty-icon">◈</div>No open positions</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Optimizer status -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Optimizer Status</span>
+            <span class="panel-badge" id="optBadge">IDLE</span>
+          </div>
+          <div class="panel-body">
+            <div class="opt-status">
+              <div class="opt-row">
+                <span class="opt-row-label">Next run in</span>
+                <span class="countdown" id="optCountdown">--:--:--</span>
+              </div>
+              <div class="opt-row">
+                <span class="opt-row-label">Total runs</span>
+                <span class="opt-row-val" id="optRunCount">0</span>
+              </div>
+              <div class="opt-row">
+                <span class="opt-row-label">Symbols configured</span>
+                <span class="opt-row-val" id="optSymCount">0</span>
+              </div>
+              <div style="margin-top:4px;">
+                <div style="font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text3); margin-bottom:8px;">Global Best Config</div>
+                <div class="global-best" id="globalBestCard">
+                  <div style="color:var(--text3); font-size:11px;">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RECENT SIGNALS TABLE -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Recent Signals</span>
+          <span class="panel-badge" id="histBadge">0</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Symbol</th><th>Dir</th><th>TF</th>
+                <th>Lev</th><th>Entry</th><th>Exit</th><th>PnL</th>
+                <th>R/R</th><th>Consensus</th><th>Status</th><th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="histBody">
+              <tr><td colspan="12"><div class="empty"><div class="empty-icon">◈</div>No signals yet</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /page-overview -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         PAGE: POSITIONS
+    ══════════════════════════════════════════════════════ -->
+    <div class="page" id="page-positions">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Open Positions</span>
+          <span class="panel-badge live" id="posPageBadge">0 LIVE</span>
+        </div>
+        <div class="panel-body">
+          <div class="pos-grid" id="posGrid">
+            <div class="empty"><div class="empty-icon">◈</div>No open positions</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════
+         PAGE: SIGNALS
+    ══════════════════════════════════════════════════════ -->
+    <div class="page" id="page-signals">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Signal History</span>
+          <span class="panel-badge" id="sigPageBadge">0</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Symbol</th><th>Dir</th><th>TF</th>
+                <th>Lev</th><th>Entry</th><th>TP</th><th>SL</th>
+                <th>PnL</th><th>R/R</th><th>Fisher</th><th>Accel</th>
+                <th>Consensus</th><th>Status</th><th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="sigBody">
+              <tr><td colspan="15"><div class="empty"><div class="empty-icon">◈</div>No signals yet</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════
+         PAGE: OPTIMIZER
+    ══════════════════════════════════════════════════════ -->
+    <div class="page" id="page-optimizer">
+      <div class="panel-row cols-2" style="margin-bottom:16px;">
+        <!-- left: status -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Optimizer Status</span>
+            <span class="panel-badge" id="optPageBadge">IDLE</span>
+          </div>
+          <div class="panel-body">
+            <div class="opt-status">
+              <div class="opt-row">
+                <span class="opt-row-label">Next run in</span>
+                <span class="countdown" id="optCountdown2">--:--:--</span>
+              </div>
+              <div class="opt-row">
+                <span class="opt-row-label">Total runs</span>
+                <span class="opt-row-val" id="optRunCount2">0</span>
+              </div>
+              <div class="opt-row">
+                <span class="opt-row-label">Symbols configured</span>
+                <span class="opt-row-val" id="optSymCount2">0</span>
+              </div>
+              <div class="opt-row">
+                <span class="opt-row-label">Last run</span>
+                <span class="opt-row-val" id="optLastRun">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- right: global best -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Global Best Config</span>
+          </div>
+          <div class="panel-body">
+            <div id="globalBestFull">
+              <div class="empty"><div class="empty-icon">◈</div>Run optimizer first</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Top Configs — All Symbols</span>
+          <span class="panel-badge" id="optTableBadge">0</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th><th>Symbol</th><th>TF</th>
+                <th>F.Period</th><th>S.Period</th><th>Lev</th>
+                <th>Sharpe</th><th>Win Rate</th><th>P.Factor</th>
+                <th>Max DD</th><th>Trades</th><th>Score</th>
+              </tr>
+            </thead>
+            <tbody id="optBody">
+              <tr><td colspan="12"><div class="empty"><div class="empty-icon">◈</div>No data yet</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toastContainer"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════════ */
+let state = null;
+let ws    = null;
+let wsRetryDelay = 1000;
+let activeTab = 'overview';
+
+/* ════════════════════════════════════════════════════════
+   CLOCK
+════════════════════════════════════════════════════════ */
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toUTCString().slice(17, 25) + ' UTC';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ════════════════════════════════════════════════════════
+   TABS
+════════════════════════════════════════════════════════ */
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const tabs = ['overview','positions','signals','optimizer'];
+    t.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (state) renderAll(state);
+}
+
+/* ════════════════════════════════════════════════════════
+   WEBSOCKET
+════════════════════════════════════════════════════════ */
+function connectWS() {
+  const dot   = document.getElementById('wsDot');
+  const label = document.getElementById('wsLabel');
+  dot.className   = 'ws-dot';
+  label.textContent = 'CONNECTING';
+
+  ws = new WebSocket(`ws://${location.host}/ws`);
+
+  ws.onopen = () => {
+    dot.className     = 'ws-dot live';
+    label.textContent = 'LIVE';
+    wsRetryDelay      = 1000;
+    // heartbeat
+    setInterval(() => ws && ws.readyState === 1 && ws.send('ping'), 20000);
+  };
+
+  ws.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'pong') return;
+    if (data.type === 'signal') { showToast(data.signal); return; }
+    if (data.type === 'state')  { state = data; renderAll(data); }
+  };
+
+  ws.onclose = () => {
+    dot.className     = 'ws-dot err';
+    label.textContent = 'RECONNECTING';
+    setTimeout(connectWS, wsRetryDelay);
+    wsRetryDelay = Math.min(wsRetryDelay * 2, 30000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+connectWS();
+
+/* also poll REST as fallback every 10s */
+setInterval(async () => {
+  if (ws && ws.readyState === 1) return; // WS is fine
+  try {
+    const r = await fetch('/api/state');
+    const d = await r.json();
+    d.type = 'state';
+    state  = d;
+    renderAll(d);
+  } catch(_) {}
+}, 10000);
+
+/* ════════════════════════════════════════════════════════
+   FORMATTERS
+════════════════════════════════════════════════════════ */
+const fmt6   = n => n == null ? '—' : Number(n).toFixed(n < 1 ? 6 : n < 100 ? 4 : 2);
+const fmtPct = n => n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+const fmtTs  = ts => ts ? new Date(ts * 1000).toLocaleTimeString() : '—';
+const fmtDate= ts => ts ? new Date(ts * 1000).toLocaleDateString() : '—';
+
+function pnlClass(v) {
+  return v == null ? '' : v >= 0 ? 'pnl-pos' : 'pnl-neg';
+}
+
+function countdown(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// live countdown ticker
+setInterval(() => {
+  if (!state) return;
+  const secs = Math.max(0, state.optimizer.secsUntilNext - Math.floor(Date.now()/1000 - state.ts));
+  const c = countdown(secs);
+  const el1 = document.getElementById('optCountdown');
+  const el2 = document.getElementById('optCountdown2');
+  if (el1) el1.textContent = c;
+  if (el2) el2.textContent = c;
+}, 1000);
+
+/* ════════════════════════════════════════════════════════
+   RENDER
+════════════════════════════════════════════════════════ */
+function renderAll(d) {
+  renderStats(d.stats);
+  renderOptimizerStatus(d.optimizer);
+  if (activeTab === 'overview') {
+    renderOpenMini(d.openPositions);
+    renderHistory(d.history);
+    renderPnlChart(d.pnlCurve);
+  } else if (activeTab === 'positions') {
+    renderPositionsPage(d.openPositions);
+  } else if (activeTab === 'signals') {
+    renderSignalsPage(d.history);
+  } else if (activeTab === 'optimizer') {
+    renderOptimizerPage(d.optimizer, d.optConfigs);
+  }
+}
+
+/* ── STATS ── */
+function setVal(id, val, cls) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.textContent !== String(val)) {
+    el.textContent = val;
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 400);
+  }
+  if (cls) el.className = 'stat-value ' + cls;
+}
+
+function renderStats(s) {
+  setVal('s-totalSignals', s.totalSignals, 'accent');
+  document.getElementById('s-openSub').textContent = s.openSignals + ' open';
+
+  const wr = s.totalClosed > 0 ? s.winRate.toFixed(1) + '%' : '—';
+  setVal('s-winRate', wr, s.winRate >= 50 ? 'up' : (s.totalClosed > 0 ? 'down' : ''));
+  document.getElementById('s-wlSub').textContent = s.wins + ' W / ' + s.losses + ' L';
+
+  setVal('s-totalPnl', fmtPct(s.totalPnl), s.totalPnl >= 0 ? 'up' : 'down');
+  document.getElementById('s-avgSub').textContent = 'avg ' + fmtPct(s.avgPnl) + ' per trade';
+
+  setVal('s-bestTrade', fmtPct(s.bestTrade), 'up');
+  document.getElementById('s-worstSub').textContent = 'worst ' + fmtPct(s.worstTrade);
+
+  setVal('s-maxDD', fmtPct(s.maxDrawdown), s.maxDrawdown > 10 ? 'down' : '');
+  setVal('s-optRuns', s.totalSignals > 0 ? s.totalSignals : '—', 'accent');
+}
+
+/* ── OPTIMIZER STATUS ── */
+function renderOptimizerStatus(opt) {
+  document.getElementById('s-optRuns').textContent = opt.runCount;
+  document.getElementById('s-optSyms').textContent = opt.configCount + ' symbols';
+  document.getElementById('optRunCount').textContent  = opt.runCount;
+  document.getElementById('optSymCount').textContent  = opt.configCount;
+
+  const badge = opt.runCount > 0 ? 'DONE' : 'IDLE';
+  document.getElementById('optBadge').textContent = badge;
+
+  // global best card
+  const gb = opt.globalBest;
+  const gbCard = document.getElementById('globalBestCard');
+  if (gb) {
+    gbCard.innerHTML = `
+      <div class="gb-sym">${gb.symbol} <span style="color:var(--text3);font-size:12px;font-weight:400;">${gb.tf}</span></div>
+      <div class="gb-stats">
+        <div class="gb-stat"><span class="gb-stat-label">Sharpe</span><span class="gb-stat-val">${gb.sharpe}</span></div>
+        <div class="gb-stat"><span class="gb-stat-label">Win Rate</span><span class="gb-stat-val">${gb.winRate}%</span></div>
+        <div class="gb-stat"><span class="gb-stat-label">Leverage</span><span class="gb-stat-val" style="color:var(--yellow)">${gb.leverage}×</span></div>
+      </div>`;
+  }
+}
+
+/* ── OPEN MINI ── */
+function renderOpenMini(positions) {
+  const el = document.getElementById('openMini');
+  document.getElementById('openBadge').textContent = positions.length;
+  if (!positions.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">◈</div>No open positions</div>';
+    return;
+  }
+  el.innerHTML = positions.map(p => `
+    <div style="display:flex;justify-content:space-between;align-items:center;
+                padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="tag ${p.direction==='LONG'?'long':'short'}">${p.direction}</span>
+        <span style="color:var(--text);font-family:var(--font-sans);font-weight:600;">${p.symbol}</span>
+      </div>
+      <div style="color:var(--text2);">${p.timeframe} · ×${p.leverage}</div>
+      <div style="font-family:var(--font-mono);color:var(--text);">${fmt6(p.entry)}</div>
+    </div>`).join('');
+}
+
+/* ── HISTORY TABLE (overview) ── */
+function renderHistory(history) {
+  const body = document.getElementById('histBody');
+  document.getElementById('histBadge').textContent = history.length;
+  if (!history.length) {
+    body.innerHTML = '<tr><td colspan="12"><div class="empty"><div class="empty-icon">◈</div>No signals yet</div></td></tr>';
+    return;
+  }
+  body.innerHTML = history.slice(0, 20).map(s => `
+    <tr>
+      <td class="mono" style="color:var(--text3);font-size:10px;">${s.id}</td>
+      <td style="font-family:var(--font-sans);font-weight:600;">${s.symbol}</td>
+      <td><span class="tag ${s.direction==='LONG'?'long':'short'}">${s.direction}</span></td>
+      <td style="color:var(--text2);">${s.timeframe}</td>
+      <td style="color:var(--yellow);">×${s.leverage}</td>
+      <td class="mono">${fmt6(s.entry)}</td>
+      <td class="mono" style="color:var(--text2);">${fmt6(s.exit)}</td>
+      <td class="mono ${pnlClass(s.pnl)}">${fmtPct(s.pnl)}</td>
+      <td class="mono">1:${s.rr}</td>
+      <td class="mono" style="color:var(--accent);">${s.consensus ?? '—'}</td>
+      <td><span class="tag ${s.isOpen?'open':s.pnl>0?'long':'short'}">${s.isOpen?'OPEN':s.pnl>0?'WIN':'LOSS'}</span></td>
+      <td style="color:var(--text3);font-size:10px;">${fmtTs(s.timestamp)}</td>
+    </tr>`).join('');
+}
+
+/* ── PNL CHART ── */
+function renderPnlChart(curve) {
+  const canvas = document.getElementById('pnlCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.parentElement.clientWidth;
+  const H = canvas.parentElement.clientHeight || 160;
+  canvas.width  = W;
+  canvas.height = H;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!curve || curve.length < 2) {
+    ctx.fillStyle = '#3d5570';
+    ctx.font      = '11px Space Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No closed trades yet', W/2, H/2);
+    return;
+  }
+
+  const vals = curve.map(p => p.pnl);
+  const minV = Math.min(0, ...vals);
+  const maxV = Math.max(0, ...vals);
+  const range = maxV - minV || 1;
+  const padX = 12, padY = 16;
+  const iW = W - padX * 2;
+  const iH = H - padY * 2;
+
+  const toX = i => padX + (i / (vals.length - 1)) * iW;
+  const toY = v => padY + iH - ((v - minV) / range) * iH;
+
+  // zero line
+  const zeroY = toY(0);
+  ctx.strokeStyle = '#1e2d3d';
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(padX, zeroY); ctx.lineTo(W - padX, zeroY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // fill gradient
+  const lastVal = vals[vals.length - 1];
+  const isPos   = lastVal >= 0;
+  const grad    = ctx.createLinearGradient(0, padY, 0, H - padY);
+  if (isPos) {
+    grad.addColorStop(0, 'rgba(0,229,160,0.3)');
+    grad.addColorStop(1, 'rgba(0,229,160,0)');
+  } else {
+    grad.addColorStop(0, 'rgba(255,68,102,0)');
+    grad.addColorStop(1, 'rgba(255,68,102,0.3)');
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(toX(0), zeroY);
+  vals.forEach((v, i) => ctx.lineTo(toX(i), toY(v)));
+  ctx.lineTo(toX(vals.length - 1), zeroY);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // line
+  ctx.beginPath();
+  ctx.lineWidth   = 2;
+  ctx.strokeStyle = isPos ? '#00e5a0' : '#ff4466';
+  vals.forEach((v, i) => i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v)));
+  ctx.stroke();
+
+  // last value label
+  const lx = toX(vals.length - 1);
+  const ly = toY(lastVal);
+  ctx.beginPath();
+  ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+  ctx.fillStyle = isPos ? '#00e5a0' : '#ff4466';
+  ctx.fill();
+
+  ctx.fillStyle   = isPos ? '#00e5a0' : '#ff4466';
+  ctx.font        = 'bold 11px Space Mono, monospace';
+  ctx.textAlign   = 'right';
+  ctx.fillText(fmtPct(lastVal), W - padX, ly - 7);
+}
+
+/* ── POSITIONS PAGE ── */
+function renderPositionsPage(positions) {
+  const grid = document.getElementById('posGrid');
+  document.getElementById('posPageBadge').textContent = positions.length + ' LIVE';
+  if (!positions.length) {
+    grid.innerHTML = '<div class="empty"><div class="empty-icon">◈</div>No open positions</div>';
+    return;
+  }
+  grid.innerHTML = positions.map(p => {
+    const isLong = p.direction === 'LONG';
+    const rrW    = Math.min(p.rr / 5 * 100, 100);
+    return `
+    <div class="pos-card ${isLong ? 'long-card' : 'short-card'}">
+      <div class="pos-card-header">
+        <span class="pos-symbol">${p.symbol}</span>
+        <span class="tag ${isLong?'long':'short'}">${p.direction}</span>
+      </div>
+      <div class="pos-row"><span class="pos-key">Entry</span><span class="pos-val">${fmt6(p.entry)}</span></div>
+      <div class="pos-row"><span class="pos-key">Take Profit</span><span class="pos-val" style="color:var(--green)">${fmt6(p.tp)}</span></div>
+      <div class="pos-row"><span class="pos-key">Stop Loss</span><span class="pos-val" style="color:var(--red)">${fmt6(p.sl)}</span></div>
+      <div class="pos-row"><span class="pos-key">Leverage</span><span class="pos-val" style="color:var(--yellow)">×${p.leverage}</span></div>
+      <div class="pos-row"><span class="pos-key">Timeframe</span><span class="pos-val">${p.timeframe}</span></div>
+      <div class="pos-row"><span class="pos-key">Fisher</span><span class="pos-val">${p.fisher}</span></div>
+      <div class="pos-row"><span class="pos-key">Consensus</span><span class="pos-val" style="color:var(--accent)">${p.consensus} / ${p.maxConsen}</span></div>
+      <div class="pos-row"><span class="pos-key">R/R</span><span class="pos-val">1 : ${p.rr}</span></div>
+      <div class="pos-rr-bar"><div class="pos-rr-fill" style="width:${rrW}%"></div></div>
+      <div style="font-size:10px;color:var(--text3);margin-top:8px;">${p.id} · ${fmtTs(p.timestamp)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── SIGNALS PAGE ── */
+function renderSignalsPage(history) {
+  const body = document.getElementById('sigBody');
+  document.getElementById('sigPageBadge').textContent = history.length;
+  if (!history.length) {
+    body.innerHTML = '<tr><td colspan="15"><div class="empty"><div class="empty-icon">◈</div>No signals yet</div></td></tr>';
+    return;
+  }
+  body.innerHTML = history.map(s => `
+    <tr>
+      <td class="mono" style="color:var(--text3);font-size:10px;">${s.id}</td>
+      <td style="font-family:var(--font-sans);font-weight:600;">${s.symbol}</td>
+      <td><span class="tag ${s.direction==='LONG'?'long':'short'}">${s.direction}</span></td>
+      <td style="color:var(--text2);">${s.timeframe}</td>
+      <td style="color:var(--yellow);">×${s.leverage}</td>
+      <td class="mono">${fmt6(s.entry)}</td>
+      <td class="mono" style="color:var(--green);">${s.tp ? fmt6(s.tp) : '—'}</td>
+      <td class="mono" style="color:var(--red);">${s.sl ? fmt6(s.sl) : '—'}</td>
+      <td class="mono ${pnlClass(s.pnl)}">${fmtPct(s.pnl)}</td>
+      <td class="mono">1:${s.rr}</td>
+      <td class="mono" style="color:var(--text2);">${s.fisher ?? '—'}</td>
+      <td class="mono" style="color:var(--text2);">${s.accel ?? '—'}</td>
+      <td class="mono" style="color:var(--accent);">${s.consensus ?? '—'}</td>
+      <td><span class="tag ${s.isOpen?'open':s.pnl>0?'long':'short'}">${s.isOpen?'OPEN':s.pnl>0?'WIN':'LOSS'}</span></td>
+      <td style="color:var(--text3);font-size:10px;">${fmtTs(s.timestamp)}</td>
+    </tr>`).join('');
+}
+
+/* ── OPTIMIZER PAGE ── */
+function renderOptimizerPage(opt, configs) {
+  document.getElementById('optRunCount2').textContent = opt.runCount;
+  document.getElementById('optSymCount2').textContent = opt.configCount;
+  document.getElementById('optLastRun').textContent   = opt.lastRun ? fmtDate(opt.lastRun) + ' ' + fmtTs(opt.lastRun) : '—';
+  document.getElementById('optTableBadge').textContent = configs.length;
+  const badge2 = opt.runCount > 0 ? 'DONE ✓' : 'IDLE';
+  document.getElementById('optPageBadge').textContent = badge2;
+
+  const gb = opt.globalBest;
+  const gbFull = document.getElementById('globalBestFull');
+  if (gb) {
+    gbFull.innerHTML = `
+      <div class="gb-sym" style="font-size:20px;">${gb.symbol}</div>
+      <div style="color:var(--text3);font-size:12px;margin-bottom:16px;">${gb.tf} timeframe</div>
+      <div class="gb-stats" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="gb-stat"><div class="stat-label">Sharpe</div><div class="stat-value up" style="font-size:20px;">${gb.sharpe}</div></div>
+        <div class="gb-stat"><div class="stat-label">Win Rate</div><div class="stat-value up" style="font-size:20px;">${gb.winRate}%</div></div>
+        <div class="gb-stat"><div class="stat-label">Leverage</div><div class="stat-value" style="font-size:20px;color:var(--yellow);">${gb.leverage}×</div></div>
+      </div>`;
+  }
+
+  const body = document.getElementById('optBody');
+  if (!configs.length) {
+    body.innerHTML = '<tr><td colspan="12"><div class="empty"><div class="empty-icon">◈</div>No data yet — run optimizer first</div></td></tr>';
+    return;
+  }
+  const maxScore = Math.max(...configs.map(c => c.score));
+  body.innerHTML = configs.map((c, i) => `
+    <tr>
+      <td style="color:var(--text3);">${i+1}</td>
+      <td style="font-family:var(--font-sans);font-weight:600;">${c.symbol}</td>
+      <td style="color:var(--text2);">${c.timeframe}</td>
+      <td class="mono">${c.fp}</td>
+      <td class="mono">${c.sp}</td>
+      <td style="color:var(--yellow);">×${c.leverage}</td>
+      <td class="mono ${c.sharpe>=1?'pnl-pos':c.sharpe>=0?'':'pnl-neg'}">${c.sharpe}</td>
+      <td class="mono ${c.winRate>=50?'pnl-pos':''}">${c.winRate}%</td>
+      <td class="mono">${c.pf}</td>
+      <td class="mono ${c.maxDD>15?'pnl-neg':''}">${c.maxDD}%</td>
+      <td class="mono" style="color:var(--text2);">${c.trades}</td>
+      <td>
+        <div class="score-bar">
+          <div class="score-fill"><div class="score-inner" style="width:${maxScore?c.score/maxScore*100:0}%"></div></div>
+          <span class="mono" style="font-size:10px;">${c.score}</span>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+/* ════════════════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+════════════════════════════════════════════════════════ */
+function showToast(sig) {
+  const container = document.getElementById('toastContainer');
+  const isLong    = sig.direction === 'LONG';
+  const div       = document.createElement('div');
+  div.className   = `toast ${isLong ? 'long-toast' : 'short-toast'}`;
+  div.innerHTML   = `
+    <div class="toast-header">
+      <span class="toast-sym">${sig.symbol}</span>
+      <span class="tag ${isLong?'long':'short'}">${sig.direction} ×${sig.leverage}</span>
+    </div>
+    <div class="toast-rows">
+      <div class="toast-row"><span>Entry</span><span class="toast-val">${fmt6(sig.entry)}</span></div>
+      <div class="toast-row"><span>TP / SL</span><span class="toast-val">${fmt6(sig.tp)} / ${fmt6(sig.sl)}</span></div>
+      <div class="toast-row"><span>Consensus</span><span class="toast-val" style="color:var(--accent)">${sig.consensus}/${sig.maxConsen}</span></div>
+      <div class="toast-row"><span>Timeframe</span><span class="toast-val">${sig.timeframe}</span></div>
+    </div>`;
+  container.appendChild(div);
+  setTimeout(() => {
+    div.style.animation = 'toastOut 0.3s ease forwards';
+    setTimeout(() => div.remove(), 300);
+  }, 6000);
+}
+
+/* ════════════════════════════════════════════════════════
+   RESIZE CHART ON WINDOW RESIZE
+════════════════════════════════════════════════════════ */
+window.addEventListener('resize', () => {
+  if (state && activeTab === 'overview') renderPnlChart(state.pnlCurve);
+});
+</script>
+</body>
+</html>
